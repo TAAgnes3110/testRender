@@ -53,11 +53,4 @@ module.exports = {
     secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
     expiry: process.env.JWT_EXPIRY || '24h'
   },
-
-  // Render deployment configuration
-  render: {
-    isRender: process.env.RENDER === 'true',
-    port: process.env.PORT || process.env.APP_PORT || 9000,
-    host: process.env.RENDER_EXTERNAL_HOSTNAME || process.env.APP_HOST || 'localhost'
-  }
 }
