@@ -1,217 +1,219 @@
-const httpStatus = require('http-status')
-const { ApiError } = require('../utils/index')
-const { bookModel } = require('../models/bookModel')
-const { categoryModel } = require('../models/categoryModel')
+const { bookModel } = require('../models/index')
+const logger = require('../config/logger')
 
 /**
  * Lấy danh sách sách với tìm kiếm và phân trang
- * @param {Object} options - Tùy chọn tìm kiếm và phân trang
- * @returns {Promise<Object>} - Danh sách sách với thông tin phân trang
- * @throws {ApiError} 500 - Lỗi máy chủ nội bộ
+ * @param {Object} data - Dữ liệu tìm kiếm
+ * @param {Object} data.options - Các tùy chọn tìm kiếm
+ * @param {number} data.options.page - Trang hiện tại
+ * @param {number} data.options.limit - Số lượng sách trên mỗi trang
+ * @param {string} data.options.search - Từ khóa tìm kiếm
+ * @param {string} data.options.category - Thể loại sách
+ * @param {string} data.options.status - Trạng thái sách
+ * @param {string} data.options.sortBy - Trường sắp xếp
+ * @param {string} data.options.sortOrder - Thứ tự sắp xếp
+ * @returns {Object} data - Dữ liệu sách
+ * @returns {Array} data.books - Danh sách sách
+ * @returns {Object} data.pagination - Thông tin phân trang
+ * @returns {number} data.pagination.page - Trang hiện tại
+ * @returns {number} data.pagination.limit - Số lượng sách trên mỗi trang
+ * @returns {number} data.pagination.total - Tổng số lượng sách
+ * @returns {number} data.pagination.totalPages - Tổng số trang
  */
-const getBooksList = async (options = {}) => {
+const getBooksList = async (data) => {
+  const { options = {} } = data || {}
   try {
-    const result = await bookModel.getList(options)
-    return result
+    const result = await bookModel.search(options)
+    return {
+      success: true,
+      data: result
+    }
   } catch (error) {
-    if (error instanceof ApiError) throw error
-    throw new ApiError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      `Lấy danh sách sách thất bại: ${error.message}`
-    )
+    return {
+      success: false,
+      message: error.message
+    }
   }
 }
 
 /**
  * Lấy sách theo ID
- * @param {string} bookId - ID sách
- * @returns {Promise<Object>} - Đối tượng sách
- * @throws {ApiError} 404 - Không tìm thấy sách
+ * @param {Object} data - Dữ liệu sách
+ * @param {string} data.id - ID sách
+ * @returns {Object} data - Dữ liệu sách
+ * @returns {Object} data.book - Sách
  */
-const getBookById = async (bookId) => {
+const getBookById = async (data) => {
+  const { id } = data
   try {
-    if (!bookId) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        'ID sách là bắt buộc'
-      )
+    const book = await bookModel.getById(id)
+    return {
+      success: true,
+      data: { book }
     }
-
-    const result = await bookModel.getById(bookId)
-    return result
   } catch (error) {
-    if (error instanceof ApiError) throw error
-    throw new ApiError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      `Lấy sách thất bại: ${error.message}`
-    )
+    return {
+      success: false,
+      message: error.message
+    }
   }
 }
 
 /**
  * Tạo sách mới
- * @param {Object} bookData - Dữ liệu sách
- * @returns {Promise<Object>} - Đối tượng sách đã tạo
- * @throws {ApiError} 400 - Dữ liệu không hợp lệ
+ * @param {Object} data - Dữ liệu sách
+ * @param {Object} data.bookData - Dữ liệu sách
+ * @returns {Object} data - Dữ liệu sách
+ * @returns {Object} data.book - Sách
  */
-const createBook = async (bookData) => {
+const createBook = async (data) => {
+  const { bookData } = data
   try {
-    // Kiểm tra thể loại tồn tại
-    if (bookData.category) {
-      const category = await categoryModel.getById(bookData.category)
-      if (!category) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          'Thể loại không tồn tại'
-        )
+    const book = await bookModel.create(bookData)
+    return {
+      success: true,
+      data: { book },
+      message: 'Tạo sách thành công'
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message
+    }
+  }
+}
+
+/**
+ * Cập nhật sách
+ * @param {Object} data - Dữ liệu sách
+ * @param {string} data.id - ID sách
+ * @param {Object} data.updateData - Dữ liệu sách cập nhật
+ * @returns {Object} data - Dữ liệu sách
+ * @returns {Object} data.book - Sách
+ */
+const updateBookById = async (data) => {
+  const { id, updateData } = data
+  try {
+    const book = await bookModel.update(id, updateData)
+    return {
+      success: true,
+      data: { book },
+      message: 'Cập nhật sách thành công'
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message
+    }
+  }
+}
+
+/**
+ * Xóa sách
+ * @param {Object} data - Dữ liệu sách
+ * @param {string} data.id - ID sách
+ * @returns {Object} Kết quả tìm kiếm
+ * @returns {Object} data - Dữ liệu sách
+ * @returns {Object} data.book - Sách
+ */
+const deleteBookById = async (data) => {
+  const { id } = data
+  try {
+    await bookModel.delete(id)
+    return {
+      success: true,
+      message: 'Xóa sách thành công'
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message
+    }
+  }
+}
+
+/**
+ * Lấy sách mới nhất
+ * @param {Object} data - Dữ liệu sách
+ * @param {number} data.limit - Số lượng sách
+ * @returns {Object} Kết quả tìm kiếm
+ * @returns {Array} data.books - Danh sách sách
+ */
+const getLatestBooks = async (data) => {
+  const { limit = 10 } = data || {}
+  try {
+    const books = await bookModel.getLatest(limit)
+    return {
+      success: true,
+      data: { books }
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message
+    }
+  }
+}
+
+/**
+ * Lấy ID lớn nhất
+ * @returns {Object} Kết quả tìm kiếm
+ * @returns {Object} data.currentMaxId - ID lớn nhất
+ */
+const getCurrentMaxBookId = async () => {
+  try {
+    const maxId = await bookModel.getMaxId()
+    return {
+      success: true,
+      data: { currentMaxId: maxId }
+    }
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message
+    }
+  }
+}
+
+/**
+ * Lấy thông tin chi tiết của các sách yêu thích
+ * @param {Object} data - Dữ liệu sách
+ * @param {Array} data.bookIds - Danh sách ID sách
+ * @returns {Object} Kết quả tìm kiếm
+ * @returns {Array} data.books - Danh sách sách yêu thích
+ */
+const getFavoriteBooksDetails = async (data) => {
+  const { bookIds } = data
+  try {
+    if (!Array.isArray(bookIds) || bookIds.length === 0) {
+      return {
+        success: true,
+        data: { books: [] }
       }
     }
 
-    const result = await bookModel.create(bookData)
-    return result
-  } catch (error) {
-    if (error instanceof ApiError) throw error
-    throw new ApiError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      `Tạo sách thất bại: ${error.message}`
-    )
-  }
-}
-
-/**
- * Cập nhật sách theo ID
- * @param {string} bookId - ID sách
- * @param {Object} updateData - Dữ liệu cập nhật
- * @returns {Promise<Object>} - Đối tượng sách đã cập nhật
- * @throws {ApiError} 404 - Không tìm thấy sách
- */
-const updateBookById = async (bookId, updateData) => {
-  try {
-    if (!bookId) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        'ID sách là bắt buộc'
-      )
-    }
-
-    // Kiểm tra thể loại nếu được cung cấp
-    if (updateData.category) {
-      const category = await categoryModel.getById(updateData.category)
-      if (!category) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          'Thể loại không tồn tại'
-        )
+    const books = []
+    for (const bookId of bookIds) {
+      try {
+        const book = await bookModel.getById(bookId)
+        if (book) {
+          books.push(book)
+        }
+      } catch (error) {
+        // Bỏ qua sách không tồn tại
+        logger.warn(`Book with ID ${bookId} not found`)
       }
     }
 
-    const result = await bookModel.update(bookId, updateData)
-    return result
+    return {
+      success: true,
+      data: { books }
+    }
   } catch (error) {
-    if (error instanceof ApiError) throw error
-    throw new ApiError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      `Cập nhật sách thất bại: ${error.message}`
-    )
-  }
-}
-
-/**
- * Xóa sách theo ID
- * @param {string} bookId - ID sách
- * @returns {Promise<Object>} - Kết quả xóa
- * @throws {ApiError} 404 - Không tìm thấy sách
- */
-const deleteBookById = async (bookId) => {
-  try {
-    if (!bookId) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        'ID sách là bắt buộc'
-      )
+    return {
+      success: false,
+      message: error.message
     }
-
-    const result = await bookModel.delete(bookId)
-    return result
-  } catch (error) {
-    if (error instanceof ApiError) throw error
-    throw new ApiError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      `Xóa sách thất bại: ${error.message}`
-    )
-  }
-}
-
-/**
- * Tìm kiếm sách theo tên
- * @param {string} title - Tên tìm kiếm
- * @param {Object} options - Tùy chọn bổ sung
- * @returns {Promise<Object>} - Kết quả tìm kiếm
- * @throws {ApiError} 400 - Từ khóa tìm kiếm không hợp lệ
- */
-const searchBooksByTitle = async (title, options = {}) => {
-  try {
-    if (!title || title.trim() === '') {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        'Tên tìm kiếm là bắt buộc'
-      )
-    }
-
-    const searchOptions = {
-      search: title.trim(),
-      ...options
-    }
-
-    const result = await bookModel.getList(searchOptions)
-    return result
-  } catch (error) {
-    if (error instanceof ApiError) throw error
-    throw new ApiError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      `Tìm kiếm sách thất bại: ${error.message}`
-    )
-  }
-}
-
-/**
- * Lấy sách theo thể loại
- * @param {string} categoryId - ID thể loại
- * @param {Object} options - Tùy chọn bổ sung
- * @returns {Promise<Object>} - Sách trong thể loại
- * @throws {ApiError} 400 - Thể loại không hợp lệ
- */
-const getBooksByCategory = async (categoryId, options = {}) => {
-  try {
-    if (!categoryId) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        'ID thể loại là bắt buộc'
-      )
-    }
-
-    // Kiểm tra thể loại tồn tại
-    const category = await categoryModel.getById(categoryId)
-    if (!category) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        'Thể loại không tồn tại'
-      )
-    }
-
-    const searchOptions = {
-      category: categoryId,
-      ...options
-    }
-
-    const result = await bookModel.getList(searchOptions)
-    return result
-  } catch (error) {
-    if (error instanceof ApiError) throw error
-    throw new ApiError(
-      httpStatus.INTERNAL_SERVER_ERROR,
-      `Lấy sách theo thể loại thất bại: ${error.message}`
-    )
   }
 }
 
@@ -221,6 +223,7 @@ module.exports = {
   createBook,
   updateBookById,
   deleteBookById,
-  searchBooksByTitle,
-  getBooksByCategory
+  getLatestBooks,
+  getCurrentMaxBookId,
+  getFavoriteBooksDetails
 }

@@ -8,20 +8,20 @@ const authMiddleware = async (req, res, next) => {
     const authHeader = req.headers.authorization
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new ApiError(
-        httpStatus.status.UNAUTHORIZED,
+        httpStatus.UNAUTHORIZED,
         'Valid token is required'
       )
     }
     const token = authHeader.split(' ')[1]
-    const payload = await tokenService.verifyAuthToken(token)
-    req.userId = payload.userId
+    const payload = tokenService.verifyToken({ token })
+    req.userId = payload.sub
     next()
   } catch (error) {
     logger.error(`Token authentication error: ${error.stack}`)
     next(
       error instanceof ApiError
         ? error
-        : new ApiError(httpStatus.status.UNAUTHORIZED, 'Invalid token')
+        : new ApiError(httpStatus.UNAUTHORIZED, 'Invalid token')
     )
   }
 }

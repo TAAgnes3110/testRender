@@ -13,19 +13,40 @@ module.exports = {
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID,
     projectNumber: process.env.FIREBASE_PROJECT_NUMBER,
-    databaseURL: process.env.FIREBASE_DATABASE_URL
+    databaseURL: process.env.FIREBASE_DATABASE_URL,
+    webApiKey: process.env.FIREBASE_WEB_API_KEY,
+    privateKeyId: process.env.FIREBASE_PRIVATE_KEY_ID,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    clientId: process.env.FIREBASE_CLIENT_ID
   },
   email: {
-    provider: 'resend',
-    resend: {
-      apiKey: process.env.RESEND_API_KEY
+    provider: process.env.EMAIL_PROVIDER || 'smtp',
+    smtp: {
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      auth: {
+        user: process.env.SMTP_USERNAME,
+        pass: process.env.SMTP_PASSWORD
+      },
+      // Timeout settings
+      connectionTimeout: parseInt(process.env.EMAIL_CONNECTION_TIMEOUT, 10) || 60000,
+      greetingTimeout: parseInt(process.env.EMAIL_GREETING_TIMEOUT, 10) || 30000,
+      socketTimeout: parseInt(process.env.EMAIL_SOCKET_TIMEOUT, 10) || 60000,
+      // Retry settings
+      maxRetries: parseInt(process.env.EMAIL_MAX_RETRIES, 10) || 3,
+      retryDelay: parseInt(process.env.EMAIL_RETRY_DELAY, 10) || 1000
     },
-    from: process.env.EMAIL_FROM
+    sendgrid: {
+      apiKey: process.env.SENDGRID_API_KEY
+    },
+    from: process.env.EMAIL_FROM,
+    support: process.env.EMAIL_SUPPORT || process.env.EMAIL_FROM
   },
   upload: {
-    limit: process.env.UPLOAD_LIMIT || '10mb',
-    allowedFormats: process.env.ALLOWED_FORMATS ? process.env.ALLOWED_FORMATS.split(',') : ['jpg', 'jpeg', 'png', 'gif', 'pdf'],
-    storagePath: process.env.STORAGE_PATH || 'uploads'
+    limit: process.env.UPLOAD_LIMIT,
+    allowedFormats: process.env.ALLOWED_FORMATS.split(','),
+    storagePath: process.env.STORAGE_PATH
   },
   rateLimit: {
     max: parseInt(process.env.RATE_LIMIT, 10),
@@ -36,8 +57,8 @@ module.exports = {
     format: process.env.LOG_FORMAT
   },
   cors: {
-    origin: process.env.CORS_ORIGIN || '*',
-    methods: process.env.CORS_METHODS ? process.env.CORS_METHODS.split(',') : ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    origin: process.env.CORS_ORIGIN,
+    methods: process.env.CORS_METHODS.split(','),
     credentials: process.env.CORS_CREDENTIALS === 'true'
   },
   otp: {
@@ -45,12 +66,17 @@ module.exports = {
     expiry: parseInt(process.env.OTP_EXPIRY, 10) || 300,
     provider: process.env.OTP_PROVIDER || 'email'
   },
+  twilio: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID,
+    authToken: process.env.TWILIO_AUTH_TOKEN,
+    phoneNumber: process.env.TWILIO_PHONE_NUMBER
+  },
   cache: {
-    ttl: parseInt(process.env.CACHE_TTL, 10) || 300,
-    checkperiod: parseInt(process.env.CACHE_CHECKPERIOD, 10) || 120
+    ttl: process.env.CACHE_TTL ? parseInt(process.env.CACHE_TTL, 10) : 300,
+    checkperiod: process.env.CACHE_CHECKPERIOD ? parseInt(process.env.CACHE_CHECKPERIOD, 10) : 120
   },
   jwt: {
     secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production',
     expiry: process.env.JWT_EXPIRY || '24h'
-  },
+  }
 }

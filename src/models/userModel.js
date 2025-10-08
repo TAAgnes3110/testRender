@@ -13,6 +13,7 @@ const userModel = {
    */
   create: async (userData) => {
     try {
+      // Kiểm tra dữ liệu đầu vào
       if (
         !userData.email ||
         !userData.password ||
@@ -26,6 +27,7 @@ const userModel = {
         )
       }
 
+      // Xử lý userId
       let userId = userData._id || userData.userId
       if (userId) {
         // Kiểm tra userId đã tồn tại chưa
@@ -37,6 +39,7 @@ const userModel = {
           )
         }
 
+        // Kiểm tra userId hợp lệ
         if (isNaN(userId) || userId <= 0) {
           throw new ApiError(
             httpStatus.status.BAD_REQUEST,
@@ -47,6 +50,7 @@ const userModel = {
         userId = parseInt(userId)
       }
 
+      // Kiểm tra mật khẩu và xác nhận mật khẩu
       if (userData.password !== userData.confirmPassword) {
         throw new ApiError(
           httpStatus.status.BAD_REQUEST,
@@ -54,6 +58,7 @@ const userModel = {
         )
       }
 
+      // Kiểm tra số điện thoại
       const phoneRegex = /^[0-9]{10,11}$/
       if (!phoneRegex.test(userData.phoneNumber.trim())) {
         throw new ApiError(
@@ -62,6 +67,7 @@ const userModel = {
         )
       }
 
+      // Chuẩn bị dữ liệu user
       const sanitizedData = {
         fullName: userData.fullName.trim(),
         email: userData.email.trim().toLowerCase(),
@@ -78,11 +84,13 @@ const userModel = {
         token: userData.token || null,
         comments: [],
         history: [],
+        favoriteBooks: [],
         lastLogin: Date.now(),
         createdAt: Date.now(),
         updatedAt: Date.now()
       }
 
+      // Tạo user trong database
       const userRef = db.getRef('users')
       let newUserRef
 
@@ -167,7 +175,7 @@ const userModel = {
         .once('value')
       const users = snapshot.val()
       if (!users) {
-        throw new ApiError(httpStatus.status.NOT_FOUND, 'Không tìm thấy người dùng')
+        throw new ApiError(httpStatus.status.NOT_FOUND, 'User not found or not activated')
       }
 
       const userId = Object.keys(users)[0]
@@ -175,7 +183,7 @@ const userModel = {
       if (!user.isActive) {
         throw new ApiError(
           httpStatus.status.NOT_FOUND,
-          'Không tìm thấy người dùng hoặc chưa được kích hoạt'
+          'User not found or not activated'
         )
       }
       return { _id: userId, ...user }
@@ -364,6 +372,152 @@ const userModel = {
           `Kích hoạt người dùng thất bại: ${error.message}`
         )
     }
+  },
+
+  /**
+   * Thêm sách vào danh sách yêu thích
+   * @param {string} userId - ID người dùng
+   * @param {string} bookId - ID sách
+   * @returns {Promise<boolean>} - Trạng thái thêm
+   * @throws {ApiError} - Nếu thêm thất bại
+   */
+  addFavoriteBook: async (userId, bookId) => {
+    try {
+      // Kiểm tra dữ liệu đầu vào
+      if (!userId || !bookId) {
+        throw new ApiError(
+          httpStatus.status.BAD_REQUEST,
+          'ID người dùng và ID sách là bắt buộc'
+        )
+      }
+
+      // Lấy thông tin user hiện tại
+      const user = await userModel.findById(userId)
+      if (!user) {
+        throw new ApiError(
+          httpStatus.status.NOT_FOUND,
+          'Không tìm thấy người dùng'
+        )
+      }
+
+      // Kiểm tra sách đã có trong danh sách yêu thích chưa
+      if (user.favoriteBooks && user.favoriteBooks.includes(bookId)) {
+        throw new ApiError(
+          httpStatus.status.BAD_REQUEST,
+          'Sách đã có trong danh sách yêu thích'
+        )
+      }
+
+      // Thêm bookId vào danh sách yêu thích
+      const currentFavorites = user.favoriteBooks || []
+      const updatedFavorites = [...currentFavorites, bookId]
+
+      // Cập nhật database
+      await db.getRef(`users/${userId}`).update({
+        favoriteBooks: updatedFavorites,
+        updatedAt: Date.now()
+      })
+
+      return true
+    } catch (error) {
+      throw error instanceof ApiError
+        ? error
+        : new ApiError(
+          httpStatus.status.INTERNAL_SERVER_ERROR,
+          `Thêm sách yêu thích thất bại: ${error.message}`
+        )
+    }
+  },
+
+  /**
+   * Xóa sách khỏi danh sách yêu thích
+   * @param {string} userId - ID người dùng
+   * @param {string} bookId - ID sách
+   * @returns {Promise<boolean>} - Trạng thái xóa
+   * @throws {ApiError} - Nếu xóa thất bại
+   */
+  removeFavoriteBook: async (userId, bookId) => {
+    try {
+      // Kiểm tra dữ liệu đầu vào
+      if (!userId || !bookId) {
+        throw new ApiError(
+          httpStatus.status.BAD_REQUEST,
+          'ID người dùng và ID sách là bắt buộc'
+        )
+      }
+
+      // Lấy thông tin user hiện tại
+      const user = await userModel.findById(userId)
+      if (!user) {
+        throw new ApiError(
+          httpStatus.status.NOT_FOUND,
+          'Không tìm thấy người dùng'
+        )
+      }
+
+      // Kiểm tra sách có trong danh sách yêu thích không
+      const currentFavorites = user.favoriteBooks || []
+      if (!currentFavorites.includes(bookId)) {
+        throw new ApiError(
+          httpStatus.status.BAD_REQUEST,
+          'Sách không có trong danh sách yêu thích'
+        )
+      }
+
+      // Xóa bookId khỏi danh sách yêu thích
+      const updatedFavorites = currentFavorites.filter(id => id !== bookId)
+
+      // Cập nhật database
+      await db.getRef(`users/${userId}`).update({
+        favoriteBooks: updatedFavorites,
+        updatedAt: Date.now()
+      })
+
+      return true
+    } catch (error) {
+      throw error instanceof ApiError
+        ? error
+        : new ApiError(
+          httpStatus.status.INTERNAL_SERVER_ERROR,
+          `Xóa sách yêu thích thất bại: ${error.message}`
+        )
+    }
+  },
+
+  /**
+   * Lấy danh sách sách yêu thích của người dùng
+   * @param {string} userId - ID người dùng
+   * @returns {Promise<Array>} - Danh sách ID sách yêu thích
+   * @throws {ApiError} - Nếu lấy thất bại
+   */
+  getFavoriteBooks: async (userId) => {
+    try {
+      // Kiểm tra userId
+      if (!userId) {
+        throw new ApiError(
+          httpStatus.status.BAD_REQUEST,
+          'ID người dùng là bắt buộc'
+        )
+      }
+
+      // Lấy thông tin user
+      const user = await userModel.findById(userId)
+      if (!user) {
+        throw new ApiError(
+          httpStatus.status.NOT_FOUND,
+          'Không tìm thấy người dùng'
+        )
+      }
+
+      return user.favoriteBooks || []
+    } catch (error) {
+      throw error instanceof ApiError
+        ? error
+        : new ApiError(
+          httpStatus.status.INTERNAL_SERVER_ERROR,
+          `Lấy danh sách sách yêu thích thất bại: ${error.message}`
+        )
+    }
   }
 }
 
@@ -374,5 +528,8 @@ module.exports = {
   findByEmailForActivation: userModel.findByEmailForActivation,
   update: userModel.update,
   updatePassword: userModel.updatePassword,
-  activateUser: userModel.activateUser
+  activateUser: userModel.activateUser,
+  addFavoriteBook: userModel.addFavoriteBook,
+  removeFavoriteBook: userModel.removeFavoriteBook,
+  getFavoriteBooks: userModel.getFavoriteBooks
 }

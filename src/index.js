@@ -1,10 +1,11 @@
 const app = require('./app')
 const config = require('./config/config')
 const logger = require('./config/logger')
+const { emailHealthService } = require('./services/index')
 
 // SERVER CONFIGURATION
-const port = config.app.port || 3000
 const host = config.app.host || 'localhost'
+const port = config.app.port || 3000
 const prefix = config.app.prefix || ''
 
 let server = null
@@ -13,11 +14,13 @@ let server = null
 const startServer = () => {
   try {
     server = app.listen(port, host, () => {
-      const serverUrl = `http://${host}:${port}${prefix}`
-
-      logger.info(`Server running at ${serverUrl}`)
+      logger.info(`Server running at http://${host}:${port}${prefix}`)
       logger.info(`Environment: ${config.env}`)
       logger.info(`Started at: ${new Date().toISOString()}`)
+      
+      // Start email health monitoring
+      emailHealthService.startHealthChecks()
+      logger.info('Email health monitoring started')
     })
 
     // Handle server errors

@@ -48,24 +48,42 @@ services:
         value: "jpg,jpeg,png,gif,pdf"
       - key: STORAGE_PATH
         value: uploads
-    # Add your environment variables here:
-    # - key: FIREBASE_PROJECT_ID
-    #   sync: false
-    # - key: FIREBASE_DATABASE_URL
-    #   sync: false
-    # - key: FIREBASE_PRIVATE_KEY_ID
-    #   sync: false
-    # - key: FIREBASE_PRIVATE_KEY
-    #   sync: false
-    # - key: FIREBASE_CLIENT_EMAIL
-    #   sync: false
-    # - key: FIREBASE_CLIENT_ID
-    #   sync: false
-    # - key: RESEND_API_KEY
-    #   sync: false
-    # - key: EMAIL_FROM
-    #   sync: false
-    # - key: JWT_SECRET
-    #   sync: false
-    # - key: JWT_EXPIRY
-    #   sync: false
+    # Firebase Configuration (REQUIRED - Add your actual values)
+    - key: FIREBASE_PROJECT_ID
+      sync: false
+    - key: FIREBASE_PROJECT_NUMBER
+      sync: false
+    - key: FIREBASE_DATABASE_URL
+      sync: false
+    - key: FIREBASE_WEB_API_KEY
+      sync: false
+    - key: FIREBASE_PRIVATE_KEY_ID
+      sync: false
+    - key: FIREBASE_PRIVATE_KEY
+      sync: false
+    - key: FIREBASE_CLIENT_EMAIL
+      sync: false
+    - key: FIREBASE_CLIENT_ID
+      sync: false
+
+    # Email Configuration (REQUIRED - Add your actual values)
+    - key: SMTP_HOST
+      value: smtp.gmail.com
+    - key: SMTP_PORT
+      value: 587
+    - key: SMTP_USERNAME
+      sync: false
+    - key: SMTP_PASSWORD
+      sync: false
+    - key: EMAIL_FROM
+      sync: false
+    - key: EMAIL_PROVIDER
+      value: smtp
+    - key: SENDGRID_API_KEY
+      sync: false
+
+    # JWT Configuration (REQUIRED - Add your actual values)
+    - key: JWT_SECRET
+      sync: false
+    - key: JWT_EXPIRY
+      value: 1h

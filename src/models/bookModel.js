@@ -1,117 +1,168 @@
-const httpStatus = require('http-status')
-const { ApiError } = require('../utils/index')
-const { db } = require('../config/db')
-const { generateCustomId } = require('../utils/idUtils')
-const { categoryModel } = require('./categoryModel')
+const db = require('../config/db')
 
 const bookModel = {
-
   /**
-   * Thêm sách mới
-   * @param {Object} bookData - Dữ liệu sách
-   * @returns {Promise<Object>} - ID sách và thông báo
-   * @throws {ApiError} - Nếu thêm sách thất bại
+   * Lấy tất cả sách
    */
-  create: async (bookData) => {
+  getAll: async () => {
     try {
-      if (
-        !bookData.title ||
-        !bookData.author ||
-        !bookData.category ||
-        !bookData.description ||
-        !bookData.release_date ||
-        !bookData.cover_url ||
-        !bookData.txt_url ||
-        !bookData.book_url ||
-        !bookData.epub_url ||
-        !bookData.keywords
-      ) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          'Tất cả các trường là bắt buộc'
-        )
-      }
+      const snapshot = await db.getRef('books').once('value')
+      const books = snapshot.val() || {}
 
-      const category = await categoryModel.getById(bookData.category)
-      if (!category) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          'Thể loại không tồn tại'
-        )
-      }
+      // Chuyển đổi object thành array
+      const booksArray = Object.keys(books).map(key => ({
+        _id: key,
+        ...books[key]
+      }))
 
-      if (category.status && category.status !== 'active') {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          'Thể loại không hoạt động'
-        )
-      }
-
-      let bookId = bookData._id || bookData.bookId || generateCustomId('book')
-      if (bookId) {
-        const existingBook = await db.ref(`books/${bookId}`).once('value')
-        if (existingBook.val()) {
-          throw new ApiError(
-            httpStatus.BAD_REQUEST,
-            'ID sách đã tồn tại'
-          )
-        }
-
-        if (isNaN(bookId) || bookId <= 0) {
-          throw new ApiError(
-            httpStatus.BAD_REQUEST,
-            'ID sách phải là số nguyên dương'
-          )
-        }
-
-        bookId = parseInt(bookId)
-      }
-
-      const newBook = {
-        _id: bookId,
-        title: bookData.title.trim(),
-        author: bookData.author.trim(),
-        category: bookData.category,
-        categoryName: category.name,
-        description: bookData.description.trim(),
-        release_date: bookData.release_date,
-        cover_url: bookData.cover_url,
-        txt_url: bookData.txt_url,
-        book_url: bookData.book_url,
-        epub_url: bookData.epub_url,
-        keywords: Array.isArray(bookData.keywords) ? bookData.keywords : bookData.keywords.split(',').map(k => k.trim()),
-        status: bookData.status || 'active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-
-      await db.ref(`books/${bookId}`).set(newBook)
-
-      return {
-        success: true,
-        message: 'Thêm sách thành công',
-        data: {
-          bookId: bookId,
-          book: newBook
-        }
-      }
+      return booksArray
     } catch (error) {
-      throw error instanceof ApiError
-        ? error
-        : new ApiError(
-          httpStatus.INTERNAL_SERVER_ERROR,
-          `Tạo sách thất bại: ${error.message}`
-        )
+      throw new Error(`Lỗi khi lấy danh sách sách: ${error.message}`)
     }
   },
 
   /**
-   * Lấy danh sách sách với phân trang và tìm kiếm
-   * @param {Object} options - Tùy chọn tìm kiếm và phân trang
-   * @returns {Promise<Object>} - Danh sách sách và thông tin phân trang
-   * @throws {ApiError} - Nếu lấy danh sách sách thất bại
+   * Lấy sách theo ID
    */
-  getList: async (options = {}) => {
+  getById: async (id) => {
+    try {
+      const snapshot = await db.getRef(`books/${id}`).once('value')
+      const book = snapshot.val()
+
+      if (!book) {
+        throw new Error('Không tìm thấy sách')
+      }
+
+      return { _id: id, ...book }
+    } catch (error) {
+      throw new Error(`Lỗi khi lấy sách: ${error.message}`)
+    }
+  },
+
+  /**
+   * Tạo sách mới
+   */
+  create: async (bookData) => {
+    try {
+      // Tạo ID mới
+      const snapshot = await db.getRef('books').once('value')
+      const books = snapshot.val() || {}
+      const maxId = Math.max(0, ...Object.keys(books).map(Number).filter(id => !isNaN(id)))
+      const newId = maxId + 1
+
+      // Lấy ngày hôm nay
+      const today = new Date()
+      const todayString = today.toISOString().split('T')[0] // Format: YYYY-MM-DD
+
+      const newBook = {
+        _id: newId,
+        title: bookData.title || '',
+        author: bookData.author || '',
+        category: bookData.category || null,
+        description: bookData.description || '',
+        release_date: bookData.release_date || todayString, // Mặc định là ngày hôm nay
+        cover_url: bookData.cover_url || '',
+        txt_url: bookData.txt_url || '',
+        book_url: bookData.book_url || '',
+        epub_url: bookData.epub_url || '',
+        keywords: bookData.keywords || [],
+        status: bookData.status || 'active',
+        avgRating: bookData.avgRating || 0,
+        numberOfReviews: bookData.numberOfReviews || 0,
+        createdAt: today.toISOString(), // Ngày tạo là hôm nay
+        updatedAt: today.toISOString()
+      }
+
+      await db.getRef(`books/${newId}`).set(newBook)
+      return newBook
+    } catch (error) {
+      throw new Error(`Lỗi khi tạo sách: ${error.message}`)
+    }
+  },
+
+  /**
+   * Cập nhật sách
+   */
+  update: async (id, updateData) => {
+    try {
+      // Kiểm tra sách có tồn tại không
+      const existingBook = await bookModel.getById(id)
+      if (!existingBook) {
+        throw new Error('Không tìm thấy sách')
+      }
+
+      // Cập nhật dữ liệu
+      const updatedData = {
+        ...updateData,
+        updatedAt: new Date().toISOString()
+      }
+
+      await db.getRef(`books/${id}`).update(updatedData)
+
+      // Lấy sách đã cập nhật
+      return await bookModel.getById(id)
+    } catch (error) {
+      throw new Error(`Lỗi khi cập nhật sách: ${error.message}`)
+    }
+  },
+
+  /**
+   * Xóa sách
+   */
+  delete: async (id) => {
+    try {
+      // Kiểm tra sách có tồn tại không
+      const existingBook = await bookModel.getById(id)
+      if (!existingBook) {
+        throw new Error('Không tìm thấy sách')
+      }
+
+      await db.getRef(`books/${id}`).remove()
+      return true
+    } catch (error) {
+      throw new Error(`Lỗi khi xóa sách: ${error.message}`)
+    }
+  },
+
+  /**
+   * Lấy sách mới nhất
+   */
+  getLatest: async (limit = 10) => {
+    try {
+      const allBooks = await bookModel.getAll()
+
+      // Sắp xếp theo ngày tạo mới nhất (createdAt)
+      allBooks.sort((a, b) => {
+        const dateA = new Date(a.createdAt || '1970-01-01T00:00:00.000Z')
+        const dateB = new Date(b.createdAt || '1970-01-01T00:00:00.000Z')
+        return dateB - dateA // Sắp xếp giảm dần (mới nhất trước)
+      })
+
+      return allBooks.slice(0, limit)
+    } catch (error) {
+      throw new Error(`Lỗi khi lấy sách mới nhất: ${error.message}`)
+    }
+  },
+
+  /**
+   * Lấy ID lớn nhất
+   */
+  getMaxId: async () => {
+    try {
+      const allBooks = await bookModel.getAll()
+      if (allBooks.length === 0) return 0
+
+      const maxId = Math.max(...allBooks.map(book => parseInt(book._id) || 0))
+      return maxId
+    } catch (error) {
+      throw new Error(`Lỗi khi lấy ID lớn nhất: ${error.message}`)
+    }
+  },
+
+  /**
+   * Tìm kiếm sách
+   */
+  search: async (options = {}) => {
     try {
       const {
         page = 1,
@@ -123,238 +174,57 @@ const bookModel = {
         sortOrder = 'desc'
       } = options
 
-      let booksRef = db.ref('books')
+      let allBooks = await bookModel.getAll()
 
-      const snapshot = await booksRef.once('value')
-      let books = snapshot.val() || {}
-
-      let booksArray = Object.keys(books).map(key => ({
-        _id: key,
-        ...books[key]
-      }))
-
-      if (status) {
-        booksArray = booksArray.filter(book => book.status === status)
-      }
-
-      if (category) {
-        booksArray = booksArray.filter(book => book.category === category)
-      }
-
+      // Lọc theo search
       if (search) {
-        const searchLower = search.toLowerCase()
-        booksArray = booksArray.filter((book) => {
-          const titleMatch = book.title?.toLowerCase().includes(searchLower)
-          const authorMatch = book.author?.toLowerCase().includes(searchLower)
-          const keywordMatch = Array.isArray(book.keywords)
-            ? book.keywords.some((k) => k.toLowerCase().includes(searchLower))
-            : false
-
-          return titleMatch || authorMatch || keywordMatch
-        })
+        allBooks = allBooks.filter(book =>
+          book.title?.toLowerCase().includes(search.toLowerCase()) ||
+          book.author?.toLowerCase().includes(search.toLowerCase())
+        )
       }
 
-      booksArray.sort((a, b) => {
+      // Lọc theo category
+      if (category) {
+        allBooks = allBooks.filter(book => book.category == category)
+      }
+
+      // Lọc theo status
+      if (status) {
+        allBooks = allBooks.filter(book => book.status === status)
+      }
+
+      // Sắp xếp
+      allBooks.sort((a, b) => {
         const aValue = a[sortBy] || ''
         const bValue = b[sortBy] || ''
 
-        if (typeof aValue === 'string' && typeof bValue === 'string') {
-          if (sortOrder === 'asc') {
-            return aValue.localeCompare(bValue)
-          } else {
-            return bValue.localeCompare(aValue)
-          }
+        if (sortOrder === 'asc') {
+          return aValue > bValue ? 1 : -1
+        } else {
+          return aValue < bValue ? 1 : -1
         }
-        return sortOrder === 'asc'
-          ? aValue > bValue ? 1 : -1
-          : aValue < bValue ? 1 : -1
       })
 
-      const total = booksArray.length
-      const totalPages = Math.ceil(total / limit)
+      // Phân trang
+      const total = allBooks.length
       const startIndex = (page - 1) * limit
       const endIndex = startIndex + limit
-      const paginatedBooks = booksArray.slice(startIndex, endIndex)
+      const paginatedBooks = allBooks.slice(startIndex, endIndex)
 
       return {
-        success: true,
-        data: {
-          books: paginatedBooks,
-          pagination: {
-            currentPage: parseInt(page),
-            totalPages,
-            totalItems: total,
-            itemsPerPage: parseInt(limit),
-            hasNextPage: page < totalPages,
-            hasPrevPage: page > 1
-          }
+        books: paginatedBooks,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          totalPages: Math.ceil(total / limit)
         }
       }
     } catch (error) {
-      throw error instanceof ApiError
-        ? error
-        : new ApiError(
-          httpStatus.INTERNAL_SERVER_ERROR,
-          `Lấy danh sách sách thất bại: ${error.message}`
-        )
+      throw new Error(`Lỗi khi tìm kiếm sách: ${error.message}`)
     }
-  },
-
-  /**
-   * Lấy sách theo ID
-   * @param {string} bookId - ID sách
-   * @returns {Promise<Object>} - Đối tượng sách
-   * @throws {ApiError} - Nếu lấy sách thất bại
-   */
-  getById: async (bookId) => {
-    try {
-      if (!bookId) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          'ID sách là bắt buộc'
-        )
-      }
-      const snapshot = await db.ref(`books/${bookId}`).once('value')
-      const book = snapshot.val()
-
-      if (!book) {
-        throw new ApiError(
-          httpStatus.NOT_FOUND,
-          'Không tìm thấy sách'
-        )
-      }
-
-      return {
-        success: true,
-        data: {
-          book: {
-            _id: bookId,
-            ...book
-          }
-        }
-      }
-    } catch (error) {
-      throw error instanceof ApiError
-        ? error
-        : new ApiError(
-          httpStatus.INTERNAL_SERVER_ERROR,
-          `Lấy sách thất bại: ${error.message}`
-        )
-    }
-  },
-
-
-  /**
-   * Cập nhật sách
-   * @param {string} bookId - ID sách
-   * @param {Object} updateData - Dữ liệu cập nhật
-   * @returns {Promise<boolean>} - Trạng thái cập nhật
-   * @throws {ApiError} - Nếu cập nhật thất bại
-   */
-  update: async (bookId, updateData) => {
-    try {
-      if (!bookId) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          'ID sách là bắt buộc'
-        )
-      }
-
-      const existingBook = await db.ref(`books/${bookId}`).once('value')
-      if (!existingBook.val()) {
-        throw new ApiError(
-          httpStatus.NOT_FOUND,
-          'Không tìm thấy sách'
-        )
-      }
-
-      const allowedFields = [
-        'title', 'author', 'category', 'description',
-        'release_date', 'cover_url', 'txt_url',
-        'book_url', 'epub_url', 'keywords', 'status',
-        'avgRating', 'numberOfReviews']
-
-      const updateFields = {}
-      Object.keys(updateData).forEach(key => {
-        if (allowedFields.includes(key) && updateData[key] !== undefined) {
-          if (key === 'keywords') {
-            updateFields['keywords'] = Array.isArray(updateData[key])
-              ? updateData[key]
-              : updateData[key].split(',').map(k => k.trim())
-          } else if (typeof updateData[key] === 'string') {
-            updateFields[key] = updateData[key].trim()
-          } else {
-            updateFields[key] = updateData[key]
-          }
-        }
-      })
-
-      updateFields.updatedAt = new Date().toISOString()
-
-      await db.ref(`books/${bookId}`).update(updateFields)
-
-      const updatedSnapshot = await db.ref(`books/${bookId}`).once('value')
-      const updatedBook = updatedSnapshot.val()
-
-      return {
-        success: true,
-        data: {
-          book: {
-            _id: bookId,
-            ...updatedBook
-          }
-        }
-      }
-    } catch (error) {
-      throw error instanceof ApiError
-        ? error
-        : new ApiError(
-          httpStatus.INTERNAL_SERVER_ERROR,
-          `Cập nhật sách thất bại: ${error.message}`
-        )
-    }
-  },
-
-  /**
-   * Xóa sách
-   * @param {string} bookId - ID sách
-   * @returns {Promise<boolean>} - Trạng thái xóa
-   * @throws {ApiError} - Nếu xóa thất bại
-   */
-  delete: async (bookId) => {
-    try {
-      if (!bookId) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          'ID sách là bắt buộc'
-        )
-      }
-
-      const existingBook = await db.ref(`books/${bookId}`).once('value')
-      if (!existingBook.val()) {
-        throw new ApiError(
-          httpStatus.NOT_FOUND,
-          'Không tìm thấy sách'
-        )
-      }
-
-      await db.ref(`books/${bookId}`).remove()
-
-      return {
-        success: true,
-        message: 'Xóa sách thành công'
-      }
-    } catch (error) {
-      throw error instanceof ApiError
-        ? error
-        : new ApiError(
-          httpStatus.INTERNAL_SERVER_ERROR,
-          `Xóa sách thất bại: ${error.message}`
-        )
-    }
-  },
-
-  //get new book
+  }
 }
 
-module.exports = { bookModel }
+module.exports = bookModel

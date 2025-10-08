@@ -6,12 +6,11 @@ const compression = require('compression')
 const helmet = require('helmet')
 const httpStatus = require('http-status')
 
-const { firebaseStrategy } = require('./config/passport')
 const config = require('./config/config')
 const logger = require('./config/logger')
-const auth = require('./routes/authRoute')
-const user = require('./routes/userRoute')
-const book = require('./routes/bookRoute')
+const { authRoute, userRoute, categoriesRoute, bookRoute, epubRoute } = require('./routes/index')
+const { firebaseStrategy } = require('./config/passport')
+const { emailHealthService } = require('./services/index')
 
 const app = express()
 
@@ -58,24 +57,53 @@ passport.use('firebase', firebaseStrategy)
 
 // HEALTH CHECK
 app.get('/health', (req, res) => {
+  const emailStatus = emailHealthService.getStatus()
+
   res.status(200).json({
     success: true,
     message: 'Server is running normally',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    services: {
+      email: emailStatus
+    }
   })
 })
 
+// EMAIL HEALTH CHECK
+app.get('/health/email', async (req, res) => {
+  try {
+    const isHealthy = await emailHealthService.checkHealth()
+    const status = emailHealthService.getStatus()
+
+    res.status(isHealthy ? 200 : 503).json({
+      success: isHealthy,
+      message: isHealthy ? 'Email service is healthy' : 'Email service is unhealthy',
+      status: status
+    })
+  } catch (error) {
+    logger.error('Email health check endpoint error:', error)
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check email service health',
+      error: error.message
+    })
+  }
+})
+
 // API ROUTES
-app.use('/api/auth', auth)
-app.use('/api/users', user)
-app.use('/api/books', book)
+app.use('/api/auth', authRoute)
+app.use('/api/users', userRoute)
+app.use('/api/categories', categoriesRoute)
+app.use('/api/books', bookRoute)
+app.use('/api/epub', epubRoute)
+
 
 // ERROR HANDLER
 app.use((error, req, res, next) => {
   logger.error('Unhandled error:', error)
 
-  let statusCode = error.status || error.statusCode || httpStatus.INTERNAL_SERVER_ERROR
+  let statusCode = error.status || error.statusCode || httpStatus.status.INTERNAL_SERVER_ERROR
   if (!statusCode || typeof statusCode !== 'number') {
     statusCode = 500
   }
