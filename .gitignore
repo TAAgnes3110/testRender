@@ -12,6 +12,7 @@
 /build
 /dist
 /out
+build/
 
 # Google Cloud & Firebase secrets
 serviceAccountKey.json
